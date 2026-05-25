@@ -33,15 +33,19 @@
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
   }
 
   header {
     background: var(--surface);
     border-bottom: 1px solid var(--brand-lighter);
+    position: -webkit-sticky;
     position: sticky;
     top: 0;
     z-index: 100;
     box-shadow: var(--shadow-sm);
+    width: 100%;
   }
   .header-inner {
     max-width: 1400px;
@@ -647,15 +651,57 @@
   .add-modal .info-box strong { color: var(--brand-graphite); }
 
   @media (max-width: 760px) {
-    .header-inner { padding: 16px 20px; gap: 16px; }
-    .header-stats { width: 100%; margin-left: 0; gap: 16px; flex-wrap: wrap; }
-    .toolbar { padding: 0 20px; }
-    .chips { padding: 0 20px; }
-    .grid { padding: 0 20px 80px; grid-template-columns: 1fr; }
-    .modal-content { padding: 28px 24px; }
-    .modal-title { font-size: 24px; }
+    /* === Компактный мобильный хедер === */
+    .header-inner {
+      padding: 10px 16px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .logo-img { height: 32px; }
+    .header-title {
+      font-size: 11px;
+      padding-left: 10px;
+      line-height: 1.3;
+      flex: 1;
+      min-width: 0;
+    }
+    .header-title strong { font-size: 13px; }
+    /* Прячем подпись "Финтех-библиотека терминов" — экономим место */
+    .header-title br + *,
+    .header-title-sub { display: none; }
+    .header-stats {
+      width: 100%;
+      margin-left: 0;
+      gap: 10px;
+      font-size: 11px;
+      flex-wrap: wrap;
+      justify-content: space-between;
+    }
+    .header-stats span strong { font-size: 13px; }
+    .sync-indicator {
+      font-size: 10px;
+      padding: 4px 8px;
+      gap: 4px;
+    }
+
+    .toolbar { padding: 0 16px; margin-top: 14px; }
+    .search-input { height: 44px; font-size: 14px; }
+    .lang-toggle { height: 44px; }
+    .lang-btn { padding: 0 14px; font-size: 12px; }
+
+    .chips { padding: 0 16px; gap: 6px; }
+    .chip { padding: 7px 12px; font-size: 12px; }
+
+    .grid { padding: 0 16px 80px; grid-template-columns: 1fr; gap: 12px; }
+    .card { padding: 18px 20px; }
+    .card-title { font-size: 17px; }
+
+    .modal-content { padding: 24px 20px; }
+    .modal-title { font-size: 22px; }
+    .modal-subtitle { font-size: 16px; }
+
     .fab span.fab-text { display: none; }
-    .fab { padding: 16px; }
+    .fab { padding: 14px; bottom: 20px; right: 20px; }
   }
 
   .toast {
@@ -1047,11 +1093,32 @@ function renderGrid() {
 }
 
 function findTermByName(name) {
-  const clean = name.toLowerCase().split('(')[0].trim();
-  return state.terms.find(x => {
-    const xClean = x.eng.toLowerCase().split('(')[0].trim();
-    return xClean === clean || xClean.includes(clean) || clean.includes(xClean);
-  });
+  // Нормализуем: убираем скобки с пояснениями, приводим к нижнему регистру
+  const norm = s => s.toLowerCase().split('(')[0].trim();
+  const clean = norm(name);
+
+  // ПРИОРИТЕТ 1: Точное совпадение полной строки (с учётом скобок) — самое надёжное
+  let found = state.terms.find(x => x.eng.toLowerCase() === name.toLowerCase());
+  if (found) return found;
+
+  // ПРИОРИТЕТ 2: Точное совпадение нормализованной строки (без скобок)
+  found = state.terms.find(x => norm(x.eng) === clean);
+  if (found) return found;
+
+  // ПРИОРИТЕТ 3: startsWith — для случаев типа "Chargeback Fee" ищется как начало
+  found = state.terms.find(x => norm(x.eng).startsWith(clean) || clean.startsWith(norm(x.eng)));
+  if (found) {
+    // Проверяем что нет конкурента: если несколько кандидатов, берём самое короткое (более общее)
+    const candidates = state.terms.filter(x =>
+      norm(x.eng).startsWith(clean) || clean.startsWith(norm(x.eng))
+    );
+    // Если кандидат с точно такой же длиной — он точнее
+    const exact = candidates.find(x => norm(x.eng).length === clean.length);
+    return exact || found;
+  }
+
+  // ПРИОРИТЕТ 4: includes — последний шанс (раньше был единственным)
+  return state.terms.find(x => norm(x.eng).includes(clean) || clean.includes(norm(x.eng)));
 }
 
 function openModal(id) {
